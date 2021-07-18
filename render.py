@@ -23,8 +23,8 @@ def tkinter_design():
     window.columnconfigure(0, weight=1, minsize=50)
     window.rowconfigure(0, weight=1, minsize=50)
 
-    # Capture video frames
-    cap = cv2.VideoCapture(0)
+    # # Capture video frames
+    # cap = cv2.VideoCapture(0)
 
     def callback_start():
         # open_video()
@@ -36,22 +36,10 @@ def tkinter_design():
         lmain = tk.Label(imageFrame)
         lmain.grid(row=0, column=0)
 
-        show_frame(lmain)
+        show_frame(lmain, trigger)
 
 
-    def show_frame(lmain):
-        _, frame = cap.read()
-        if trigger.get() == "flip frame horizontally":
-            frame = cv2.flip(frame, 1)
-        results = model(frame)
-        results.display(render=True)
-        cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
-        img = Image.fromarray(cv2image)
-        img = img.resize((1280, 960), Image.ANTIALIAS)
-        imgtk = ImageTk.PhotoImage(image=img)
-        lmain.imgtk = imgtk
-        lmain.configure(image=imgtk)
-        lmain.after(20, lambda: show_frame(lmain))
+
 
 
     button = tk.Button(text="Start Video", width=12, height=8,
@@ -66,6 +54,21 @@ def tkinter_design():
     w.grid(row=0, column=1, padx=5, pady=5)
 
     window.mainloop()
+
+
+def show_frame(lmain, trigger):
+    _, frame = cap.read()
+    if trigger.get() == "flip frame horizontally":
+        frame = cv2.flip(frame, 1)
+    results = model(frame)
+    results.display(render=True)
+    cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
+    img = Image.fromarray(cv2image)
+    img = img.resize((1280, 960), Image.ANTIALIAS)
+    imgtk = ImageTk.PhotoImage(image=img)
+    lmain.imgtk = imgtk
+    lmain.configure(image=imgtk)
+    lmain.after(20, lambda: show_frame(lmain, trigger))
 
 
 # def open_video():
@@ -94,6 +97,9 @@ def tkinter_design():
 if __name__ == '__main__':
     model = torch.hub.load("ultralytics/yolov5", "yolov5l6", pretrained=True)
     model.half()
+
+    # Capture video frames
+    cap = cv2.VideoCapture(0)
 
     tkinter_design()
 
