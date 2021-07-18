@@ -31,7 +31,7 @@ def tkinter_design():
         button.destroy()
         w.destroy()
 
-        imageFrame = tk.Frame(master=window, width=600, height=500)
+        imageFrame = tk.Frame(master=window, width=1280, height=720)
         imageFrame.grid(row=0, column=0, padx=10, pady=2)
         lmain = tk.Label(imageFrame)
         lmain.grid(row=0, column=0)
@@ -47,6 +47,7 @@ def tkinter_design():
         results.display(render=True)
         cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
         img = Image.fromarray(cv2image)
+        img = img.resize((1280, 960), Image.ANTIALIAS)
         imgtk = ImageTk.PhotoImage(image=img)
         lmain.imgtk = imgtk
         lmain.configure(image=imgtk)
@@ -92,6 +93,7 @@ def tkinter_design():
 
 if __name__ == '__main__':
     model = torch.hub.load("ultralytics/yolov5", "yolov5l6", pretrained=True)
+    model.half()
 
     tkinter_design()
 
