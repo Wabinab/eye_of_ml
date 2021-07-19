@@ -95,8 +95,16 @@ def show_frame(lmain, trigger):
 
 
 if __name__ == '__main__':
-    model = torch.hub.load("ultralytics/yolov5", "yolov5l6", pretrained=True)
-    model.half()
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # Model originally on GPU? If not cast to cpu it doesn't open display. 
+
+    if device == "cuda":
+        model = torch.hub.load("ultralytics/yolov5", "yolov5l6", pretrained=True)
+        model.half()
+    else:
+        model = torch.hub.load("ultralytics/yolov5", "yolov5s6", pretrained=True)
+        model.to(device)
 
     # Capture video frames
     cap = cv2.VideoCapture(0)
