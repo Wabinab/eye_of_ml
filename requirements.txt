@@ -5,6 +5,8 @@ torchsummary==1.5.1
 opencv-python
 numpy
 Pillow
+tensorflow>=2.5
+# tensorflow-gpu>=2.5
 
 # taken from ultralytics/yolov5 requirements. 
 # base ----------------------------------------
