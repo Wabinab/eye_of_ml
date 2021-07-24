@@ -113,7 +113,7 @@ def show_frame_tensorflow(lmain, trigger, model, category_index, COCO17_HUMAN_PO
         keypoints = result['detection_keypoints'][0]
         keypoint_scores = result['detection_keypoint_scores'][0]
     viz_utils.visualize_boxes_and_labels_on_image_array(
-        frame[0],
+        frame,
         result['detection_boxes'][0],
         (result['detection_classes'][0] + label_id_offset).astype(int),
         result['detection_scores'][0],
