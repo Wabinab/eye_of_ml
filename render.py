@@ -105,7 +105,8 @@ def show_frame_tensorflow(lmain, trigger, model, category_index, COCO17_HUMAN_PO
     if trigger.get() == "flip frame horizontally":
         frame = cv2.flip(frame, 1)
 
-    results = model(np.expand_dims(frame, 0))
+    with tf.device("/GPU:0"):
+        results = model(np.expand_dims(frame, 0))
     result = {key:value.numpy() for key,value in results.items()}
     label_id_offset = 0
     keypoints, keypoint_scores = None, None
@@ -150,13 +151,17 @@ def model_selection(chosen_model, ALL_MODELS):
             model.to(device)
 
     else:
-        model = hub.load(ALL_MODELS[chosen_model.get()])
+        with tf.device("/GPU:0"):
+            model = hub.load(ALL_MODELS[chosen_model.get()])
 
     return model
 
 
 if __name__ == '__main__':
     cudnn.benchmark = True
+
+    gpu = tf.config.list_physical_devices()[1]
+    tf.config.experimental.set_memory_growth(gpu, True)
 
     # Capture video frames
     cap = cv2.VideoCapture(0)
