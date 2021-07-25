@@ -36,3 +36,9 @@ pandas
 # pycocotools>=2.0  # COCO mAP
 # albumentations>=1.0.3
 thop  # FLOPs computation
+
+# efficientdet
+pycocotools
+tensorboardX
+pyyaml
+webcolors
