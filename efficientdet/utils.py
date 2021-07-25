@@ -66,9 +66,9 @@ class Anchors(nn.Module):
         else:
             self.pyramid_levels = pyramid_levels
 
-        self.strides = kwargs.get('strides', [2 ** x for x in self.pyramid_levels])
+        self.strides = np.array(kwargs.get('strides', [2 ** x for x in self.pyramid_levels]))
         self.scales = np.array(kwargs.get('scales', [2 ** 0, 2 ** (1.0 / 3.0), 2 ** (2.0 / 3.0)]))
-        self.ratios = kwargs.get('ratios', [(1.0, 1.0), (1.4, 0.7), (0.7, 1.4)])
+        self.ratios = np.array(kwargs.get('ratios', [(1.0, 1.0), (1.4, 0.7), (0.7, 1.4)]))
 
         self.last_anchors = {}
         self.last_shape = None
@@ -135,5 +135,81 @@ class Anchors(nn.Module):
         anchor_boxes = anchor_boxes.unsqueeze(0)
 
         # save it for later use to reduce overhead
+        self.last_anchors[image.device] = anchor_boxes
+        return anchor_boxes
+
+
+class TorchAnchors(nn.Module):
+    """
+    Early implementation with torch for calculations.
+    """
+
+    def __init__(self, anchor_scale=4., pyramid_levels=None, device=torch.device("cpu"), **kwargs):
+        super(TorchAnchors, self).__init__()
+        self.anchor_scale = torch.tensor(anchor_scale).to(device)
+
+        if pyramid_levels is None:
+            self.pyramid_levels = np.array([3, 4, 5, 6, 7])
+        else:
+            self.pyramid_levels = np.array(pyramid_levels)
+
+        self.strides = np.array(kwargs.get('strides', [2 ** x for x in self.pyramid_levels]))
+        self.scales = np.array(kwargs.get('scales', [2 ** 0, 2 ** (1.0 / 3.0), 2 ** (2.0 / 3.0)]))
+        self.ratios = np.array(kwargs.get('ratios', [(1.0, 1.0), (1.4, 0.7), (0.7, 1.4)]))
+
+        self.strides = torch.from_numpy(self.strides).to(device)
+        self.scales = torch.from_numpy(self.scales).to(device)
+        self.ratios = torch.from_numpy(self.ratios).to(device)
+        self.pyramid_levels = torch.from_numpy(self.pyramid_levels).to(device)
+
+        self.last_anchors = {}  # change accordingly
+        self.last_shape = None
+
+    def forward(self, image, dtype=torch.float32):
+        """
+        Generates multiscale anchor boxes. Check documentation for `Anchors`.
+        """
+        image_shape = image.shape[2:]
+
+        if image_shape == self.last_shape and image.device in self.last_anchors:
+            return self.last_anchors[image.device]
+
+        if self.last_shape is None or self.last_shape != image_shape:
+            self.last_shape = image_shape
+
+        # To be implemented.
+        boxes_all = []
+        for stride in self.strides:
+            boxes_level = []
+            for scale, ratio in itertools.product(self.scales, self.ratios):
+                if image_shape[1] % stride.item() != 0:
+                    raise ValueError('input size must be divided by the stride.')
+
+                base_anchor_size = self.anchor_scale * stride * scale
+                anchor_size_x_2 = base_anchor_size * ratio[0] / 2.0
+                anchor_size_y_2 = base_anchor_size * ratio[1] / 2.0
+
+                x = torch.arange(stride / 2, image_shape[1], stride).to(image.device)
+                y = torch.arange(stride / 2, image_shape[0], stride).to(image.device)
+
+                xv, yv = torch.meshgrid(x, y)
+
+                # Torch meshgrid is transposed of numpy, so we transpose them here.
+                xv, yv = xv.T, yv.T
+
+                xv = xv.reshape(-1)
+                yv = yv.reshape(-1)
+
+                boxes = torch.vstack((yv - anchor_size_y_2, xv - anchor_size_x_2,
+                                      yv + anchor_size_y_2, xv + anchor_size_x_2))
+                boxes = torch.swapaxes(boxes, 0, 1)
+                boxes_level.append(boxes.unsqueeze(1))  ###
+
+            boxes_level = torch.cat(boxes_level, axis=1)
+            boxes_all.append(boxes_level.reshape([-1, 4]))
+
+        anchor_boxes = torch.vstack(boxes_all)
+        anchor_boxes = anchor_boxes.unsqueeze(0)
+
         self.last_anchors[image.device] = anchor_boxes
         return anchor_boxes

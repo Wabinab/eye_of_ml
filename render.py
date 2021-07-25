@@ -10,7 +10,7 @@ from torch.backends import cudnn
 
 from efficientdet.utils import BBoxTransform, ClipBoxes
 from backbone import EfficientDetBackbone
-from myutils.myutils import invert_affine, postprocess, preprocess_video
+from myutils.myutils import invert_affine, postprocess, torch_preprocess_video, display
 
 import os
 import signal
@@ -18,7 +18,7 @@ import signal
 import tkinter as tk
 from PIL import Image, ImageTk
 
-use_float16 = False
+use_float16 = True
 
 
 obj_list = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light',
@@ -33,45 +33,6 @@ obj_list = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train'
             'toothbrush']
 
 
-class Colors:
-    # Ultralytics color palette https://ultralytics.com/
-    def __init__(self):
-        # hex = matplotlib.colors.TABLEAU_COLORS.values()
-        hex = ('FF3838', 'FF9D97', 'FF701F', 'FFB21D', 'CFD231', '48F90A', '92CC17', '3DDB86', '1A9334', '00D4BB',
-               '2C99A8', '00C2FF', '344593', '6473FF', '0018EC', '8438FF', '520085', 'CB38FF', 'FF95C8', 'FF37C7')
-        self.palette = [self.hex2rgb('#' + c) for c in hex]
-        self.n = len(self.palette)
-
-    def __call__(self, i, bgr=False):
-        c = self.palette[int(i) % self.n]
-        return (c[2], c[1], c[0]) if bgr else c
-
-    @staticmethod
-    def hex2rgb(h):  # rgb order (PIL)
-        return tuple(int(h[1 + i:1 + i + 2], 16) for i in (0, 2, 4))
-
-
-colors = Colors()  # create instance for 'from utils.plots import colors'
-
-
-def display(preds, imgs):
-    for i in range(len(imgs)):
-        if len(preds[i]['rois']) == 0:
-            return imgs[i]
-
-        for j in range(len(preds[i]['rois'])):
-            (x1, y1, x2, y2) = preds[i]['rois'][j].astype(np.int)
-            cv2.rectangle(imgs[i], (x1, y1), (x2, y2), colors(j), 2)
-            obj = obj_list[preds[i]['class_ids'][j]]
-            score = float(preds[i]['scores'][j])
-
-            cv2.putText(imgs[i], f"{obj}: {score:.3f}",
-                        (x1 + 3, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                        colors(j), 1, lineType=cv2.LINE_AA)
-
-        return imgs[i]
-
-
 def tkinter_design():
     window = tk.Tk()
     window.wm_title("Object Detector")
@@ -81,9 +42,6 @@ def tkinter_design():
 
     window.columnconfigure(0, weight=1, minsize=50)
     window.rowconfigure(0, weight=1, minsize=50)
-
-    # # Capture video frames
-    # cap = cv2.VideoCapture(0)
 
     def callback_start():
         # open_video()
@@ -118,7 +76,7 @@ def tkinter_design():
     w = tk.OptionMenu(button_frame, trigger, "flip frame horizontally", "don't flip frame")
     w.grid(row=0, column=0, padx=5, pady=5)
 
-    models_list = ["Yolov5", "EfficientDet D0"]
+    models_list = ["Yolov5", "EfficientDet D0", "EfficientDet D4"]
 
     chosen_model = tk.StringVar(frame)
     chosen_model.set("Yolov5")
@@ -149,14 +107,16 @@ def show_frame_effdet(lmain, trigger, model):
     if trigger.get() == "flip frame horizontally":
         frame = cv2.flip(frame, 1)
 
-    ori_imgs, framed_imgs, framed_metas = preprocess_video(frame)
-    x = torch.stack([torch.from_numpy(fi).to(device) for fi in framed_imgs], 0)
-    x = x.to(torch.float32 if not use_float16 else torch.float16).permute(0, 3, 1, 2)
+    ori_imgs, framed_imgs, framed_metas = torch_preprocess_video(frame, device=device)
+    # x = torch.stack([torch.from_numpy(fi).to(device) for fi in framed_imgs], 0)
+    # x = framed_imgs.unsqueeze(0).permute(0, 3, 1, 2)
+    x = framed_imgs.to(device)
+    x = x.to(torch.float32 if not use_float16 else torch.float16)
     with torch.no_grad():
         features, regression, classification, anchors = model(x)
-        frame = postprocess(x, anchors, regression, classification, regressBoxes, clipBoxes, threshold, iou_threshold)
-    frame = invert_affine(framed_metas, frame)
-    frame = display(frame, ori_imgs)
+        out = postprocess(x, anchors, regression, classification, regressBoxes, clipBoxes, threshold, iou_threshold)
+    out = invert_affine([framed_metas], out)
+    frame = display(out, [frame], obj_list, imshow=False)
 
     cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
     img = Image.fromarray(cv2image)
@@ -188,6 +148,9 @@ def get_model(model_name="Yolov5"):
             model.load_state_dict(torch.load(f'weights/efficientdet-d{compound_coef}.pth'))
         model.requires_grad_(False)
         model.eval()
+
+        if device == "cuda":
+            model.half()
 
     return model
 

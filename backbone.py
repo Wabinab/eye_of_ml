@@ -4,7 +4,7 @@ import torch
 from torch import nn
 
 from efficientdet.model import BiFPN, Regressor, Classifier, EfficientNet
-from efficientdet.utils import Anchors
+from efficientdet.utils import Anchors, TorchAnchors
 
 
 class EfficientDetBackbone(nn.Module):
@@ -55,6 +55,7 @@ class EfficientDetBackbone(nn.Module):
 
         self.anchors = Anchors(anchor_scale=self.anchor_scale[compound_coef],
                                pyramid_levels=(torch.arange(self.pyramid_levels[self.compound_coef]) + 3).tolist(),
+                               # device=torch.device("cuda"),
                                **kwargs)
 
         self.backbone_net = EfficientNet(self.backbone_compound_coef[compound_coef], load_weights)

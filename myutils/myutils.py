@@ -10,6 +10,7 @@ import cv2
 import numpy as np
 import torch
 import webcolors
+import torch.nn.functional as F
 from torch import nn
 from torch.nn.init import _calculate_fan_in_and_fan_out, _no_grad_normal_
 from torchvision.ops.boxes import batched_nms
@@ -65,6 +66,46 @@ def aspectaware_resize_padding(image, width, height, interpolation=None, means=N
     return canvas, new_w, new_h, old_w, old_h, padding_w, padding_h,
 
 
+def aspectaware_resize_padding_torch(image, width, height, interpolation=None, means=None):
+    old_h, old_w, c = image.shape
+
+    if old_w > old_h:
+        new_w = width
+        new_h = int(width / old_w * old_h)
+    else:
+        new_w = int(height / old_h * old_w)
+        new_h = height
+
+    canvas = torch.zeros((1, c, height, height), dtype=torch.float32)
+    if means is not None:
+        canvas = means
+
+    if new_w != old_w or new_h != old_h:
+        image = image.unsqueeze(0).permute(0, 3, 1, 2)
+
+        if interpolation is None:
+            image = F.interpolate(image, size=(new_h, new_w), mode="bilinear")
+        elif interpolation == "linear" or interpolation == "trilinear":
+            print("Not implemented. Will use default bilinear interpolation.")
+            image = F.interpolate(image, size=(new_h, new_w), mode="bilinear")
+        else:
+            image = F.interpolate(image, size=(new_h, new_w), mode=interpolation)
+
+    padding_h = height - new_h
+    padding_w = width - new_w
+
+    if c > 1:
+        canvas[:, :, :new_h, :new_w] = image
+    else:
+        if len(image.shape) == 2:
+            canvas[:, :, :new_h, :new_w, 0] = image
+        else:
+            canvas[:, :, :new_h, :new_w] = image
+
+    return canvas, new_w, new_h, old_w, old_h, padding_w, padding_h
+
+
+
 def preprocess(*image_path, max_size=512, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
     ori_imgs = [cv2.imread(img_path) for img_path in image_path]
     normalized_imgs = [(img[..., ::-1] / 255 - mean) / std for img in ori_imgs]
@@ -88,10 +129,15 @@ def preprocess_video(*frame_from_video, max_size=512, mean=(0.406, 0.456, 0.485)
 
 
 def torch_preprocess_video(frame_from_video, max_size=512, device=torch.device("cpu"),
-                           mean=np.array([0.406, 0.456, 0.485]), std=np.array([0.225, 0.224, 0.229])):
+                           mean=torch.tensor([0.406, 0.456, 0.485]), std=torch.tensor([0.225, 0.224, 0.229])):
+    mean, std = mean.to(device), std.to(device)
     ori_imgs = torch.from_numpy(frame_from_video).to(device)
-    normalized_imgs = (ori_imgs[:, :, [2, 1, 0]] / 255 - mean) / std
+    normalized_img = (ori_imgs[:, :, [2, 1, 0]] / 255 - mean) / std
+    img_meta = aspectaware_resize_padding_torch(normalized_img, max_size, max_size, means=None)
+    framed_imgs = img_meta[0]
+    framed_metas = img_meta[1:]
 
+    return ori_imgs, framed_imgs, framed_metas
 
 
 
@@ -157,6 +203,8 @@ def display(preds, imgs, obj_list, imshow=True, imwrite=False):
         if imwrite:
             os.makedirs('test/', exist_ok=True)
             cv2.imwrite(f'test/{uuid.uuid4().hex}.jpg', imgs[i])
+
+        return imgs[i]
 
 
 def replace_w_sync_bn(m):
