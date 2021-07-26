@@ -76,7 +76,8 @@ def tkinter_design():
     w = tk.OptionMenu(button_frame, trigger, "flip frame horizontally", "don't flip frame")
     w.grid(row=0, column=0, padx=5, pady=5)
 
-    models_list = ["Yolov5", "EfficientDet D0", "EfficientDet D4"]
+    models_list = ["Yolov5", "EfficientDet D0"]
+    if device == "cuda": models_list += ["EfficientDet D4", "EfficientDet D8"]
 
     chosen_model = tk.StringVar(frame)
     chosen_model.set("Yolov5")
@@ -124,7 +125,7 @@ def show_frame_effdet(lmain, trigger, model):
     imgtk = ImageTk.PhotoImage(image=img)
     lmain.imgtk = imgtk
     lmain.configure(image=imgtk)
-    lmain.after(20, lambda: show_frame_effdet(lmain, trigger, model))
+    lmain.after(5, lambda: show_frame_effdet(lmain, trigger, model))
 
 
 def get_model(model_name="Yolov5"):
@@ -140,11 +141,14 @@ def get_model(model_name="Yolov5"):
 
     else:
         compound_coef = int(model_name[-1])
-        model = EfficientDetBackbone(compound_coef=compound_coef, num_classes=len(obj_list)).to(device)
+        model = EfficientDetBackbone(compound_coef=compound_coef, num_classes=len(obj_list), device=device)
         try:
             model.load_state_dict(torch.load(f'weights/efficientdet-d{compound_coef}.pth'))
         except FileNotFoundError:
-            os.system(f"wget https://github.com/zylo117/Yet-Another-Efficient-Pytorch/releases/download/1.0/efficientdet-d{compound_coef}.pth -P weights/")
+            if compound_coef > 6: ver = 1.2
+            else: ver = 1.0
+
+            os.system(f"wget https://github.com/zylo117/Yet-Another-Efficient-Pytorch/releases/download/{ver}/efficientdet-d{compound_coef}.pth -P weights/")
             model.load_state_dict(torch.load(f'weights/efficientdet-d{compound_coef}.pth'))
         model.requires_grad_(False)
         model.eval()
@@ -152,7 +156,7 @@ def get_model(model_name="Yolov5"):
         if device == "cuda":
             model.half()
 
-    return model
+    return model.to(device)
 
 
 if __name__ == '__main__':
