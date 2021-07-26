@@ -55,7 +55,7 @@ class EfficientDetBackbone(nn.Module):
 
         self.anchors = TorchAnchors(anchor_scale=self.anchor_scale[compound_coef],
                                pyramid_levels=(torch.arange(self.pyramid_levels[self.compound_coef]) + 3).tolist(),
-                               # device=torch.device("cuda"),
+                               # device=kwargs.get('device', torch.device("cpu")),
                                **kwargs)
 
         self.backbone_net = EfficientNet(self.backbone_compound_coef[compound_coef], load_weights)

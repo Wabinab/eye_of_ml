@@ -21,16 +21,6 @@ class Conv2dStaticSamePadding(nn.Module):
         self.kernel_size = self.conv.kernel_size
         self.dilation = self.conv.dilation
 
-        # if isinstance(self.stride, int):
-        #     self.stride = [torch.tensor(self.stride).to("cuda")] * 2
-        # elif len(self.stride) == 1:
-        #     self.stride = [torch.tensor(self.stride[0]).to("cuda")] * 2
-        #
-        # if isinstance(self.kernel_size, int):
-        #     self.kernel_size = [torch.tensor(self.kernel_size).to("cuda")] * 2
-        # elif len(self.kernel_size) == 1:
-        #     self.kernel_size = [torch.tensor(self.kernel_size[0]).to("cuda")] * 2
-
         if isinstance(self.stride, int):
             self.stride = [self.stride] * 2
         elif len(self.stride) == 1:
@@ -48,6 +38,11 @@ class Conv2dStaticSamePadding(nn.Module):
         extra_h = (math.ceil(w / self.stride[1]) - 1) * self.stride[1] - w + self.kernel_size[1]
         extra_v = (math.ceil(h / self.stride[0]) - 1) * self.stride[0] - h + self.kernel_size[0]
 
+        left = extra_h // 2
+        right = extra_h - left
+        top = extra_v // 2
+        bottom = extra_v - top
+
         # h = torch.tensor(h).to(x.device)
         # w = torch.tensor(w).to(x.device)
         # extra_h = (torch.ceil(w / self.stride[1]) - 1) * self.stride[1] - w + self.kernel_size[1]
@@ -57,11 +52,6 @@ class Conv2dStaticSamePadding(nn.Module):
         # right = int((extra_h - left).item())
         # top = int((extra_v // 2).item())
         # bottom = int((extra_v - top).item())
-
-        left = extra_h // 2
-        right = extra_h - left
-        top = extra_v // 2
-        bottom = extra_v - top
 
         x = F.pad(x, [left, right, top, bottom])
 
