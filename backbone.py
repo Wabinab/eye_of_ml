@@ -53,7 +53,7 @@ class EfficientDetBackbone(nn.Module):
                                      num_layers=self.box_class_repeats[self.compound_coef],
                                      pyramid_levels=self.pyramid_levels[self.compound_coef])
 
-        self.anchors = Anchors(anchor_scale=self.anchor_scale[compound_coef],
+        self.anchors = TorchAnchors(anchor_scale=self.anchor_scale[compound_coef],
                                pyramid_levels=(torch.arange(self.pyramid_levels[self.compound_coef]) + 3).tolist(),
                                # device=torch.device("cuda"),
                                **kwargs)
