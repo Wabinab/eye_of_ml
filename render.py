@@ -1,6 +1,8 @@
 """
 Object detection algorithm.
 """
+import sys
+
 import numpy as np
 import cv2
 import re
@@ -18,21 +20,15 @@ import signal
 import tkinter as tk
 from PIL import Image, ImageTk
 
-use_float16 = True
+# from neural_style.nsutils import
+from neural_style.transformer_net import TransformerNet
+from neural_style.vgg import Vgg16
+
+from show_frame_utils import *
+from download_saved_models import dw_main
 
 
-obj_list = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light',
-            'fire hydrant', '', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep',
-            'cow', 'elephant', 'bear', 'zebra', 'giraffe', '', 'backpack', 'umbrella', '', '', 'handbag', 'tie',
-            'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove',
-            'skateboard', 'surfboard', 'tennis racket', 'bottle', '', 'wine glass', 'cup', 'fork', 'knife', 'spoon',
-            'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut',
-            'cake', 'chair', 'couch', 'potted plant', 'bed', '', 'dining table', '', '', 'toilet', '', 'tv',
-            'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink',
-            'refrigerator', '', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier',
-            'toothbrush']
-
-
+#%%
 def tkinter_design():
     window = tk.Tk()
     window.wm_title("Object Detector")
@@ -54,12 +50,14 @@ def tkinter_design():
         lmain = tk.Label(imageFrame)
         lmain.grid(row=0, column=0)
 
-        model = get_model(chosen_model.get())
+        model = get_model(chosen_model.get(), fnst_choice.get())
 
         if chosen_model.get() == "Yolov5":
-            show_frame(lmain, trigger, model)
+            show_frame(lmain, trigger, model, cap)
+        elif chosen_model.get() == "Fast Neural Style Transfer":
+            show_frame_fnst(lmain, trigger, model, cap, device)
         else:
-            show_frame_effdet(lmain, trigger, model)
+            show_frame_effdet(lmain, trigger, model, cap, device)
 
 
     button = tk.Button(text="Start Video", width=12, height=8,
@@ -76,7 +74,7 @@ def tkinter_design():
     w = tk.OptionMenu(button_frame, trigger, "flip frame horizontally", "don't flip frame")
     w.grid(row=0, column=0, padx=5, pady=5)
 
-    models_list = ["Yolov5", "EfficientDet D0"]
+    models_list = ["Yolov5", "EfficientDet D0", "Fast Neural Style Transfer"]
     if device == "cuda": models_list += ["EfficientDet D4", "EfficientDet D8"]
 
     chosen_model = tk.StringVar(frame)
@@ -85,59 +83,57 @@ def tkinter_design():
     mod_menu = tk.OptionMenu(button_frame, chosen_model, *models_list)
     mod_menu.grid(row=1, column=0, padx=5, pady=5)
 
+    #%%
+    fnst_frame = tk.Frame(master=frame, relief=tk.FLAT)
+    fnst_frame.grid(row=1, column=1, padx=5, pady=5)
+
+    label1 = tk.Label(fnst_frame, text="For Fast Neural Style Transfer Only:")
+    label1.grid(row=0, column=0)
+
+    fnst_list = ["Rain Princess", "Candy", "Mosaic", "Udnie"]
+
+    fnst_choice = tk.StringVar(frame)
+    fnst_choice.set("Candy")
+
+    fnst_menu = tk.OptionMenu(fnst_frame, fnst_choice, *fnst_list)
+    fnst_menu.grid(row=1, column=0, padx=5, pady=5)
+
     window.mainloop()
 
 
-def show_frame(lmain, trigger, model):
-    _, frame = cap.read()
-    if trigger.get() == "flip frame horizontally":
-        frame = cv2.flip(frame, 1)
-    results = model(frame)
-    results.display(render=True)
-    cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
-    img = Image.fromarray(cv2image)
-    img = img.resize((1280, 960), Image.ANTIALIAS)
-    imgtk = ImageTk.PhotoImage(image=img)
-    lmain.imgtk = imgtk
-    lmain.configure(image=imgtk)
-    lmain.after(20, lambda: show_frame(lmain, trigger, model))
+#%%
+def get_model(model_name="Yolov5", fnst_type=None):
+    os_type = sys.platform
 
-
-def show_frame_effdet(lmain, trigger, model):
-    _, frame = cap.read()
-    if trigger.get() == "flip frame horizontally":
-        frame = cv2.flip(frame, 1)
-
-    ori_imgs, framed_imgs, framed_metas = torch_preprocess_video(frame, device=device)
-    # x = torch.stack([torch.from_numpy(fi).to(device) for fi in framed_imgs], 0)
-    # x = framed_imgs.unsqueeze(0).permute(0, 3, 1, 2)
-    x = framed_imgs.to(device)
-    x = x.to(torch.float32 if not use_float16 else torch.float16)
-    with torch.no_grad():
-        features, regression, classification, anchors = model(x)
-        out = postprocess(x, anchors, regression, classification, regressBoxes, clipBoxes, threshold, iou_threshold)
-    out = invert_affine([framed_metas], out)
-    frame = display(out, [frame], obj_list, imshow=False)
-
-    cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
-    img = Image.fromarray(cv2image)
-    img = img.resize((1280, 960), Image.ANTIALIAS)
-    imgtk = ImageTk.PhotoImage(image=img)
-    lmain.imgtk = imgtk
-    lmain.configure(image=imgtk)
-    lmain.after(5, lambda: show_frame_effdet(lmain, trigger, model))
-
-
-def get_model(model_name="Yolov5"):
     if model_name == "Yolov5":
 
         # Model originally on GPU? If not cast to cpu it doesn't open display.
         if device == "cuda":
-            model = torch.hub.load("ultralytics/yolov5", "yolov5l6", pretrained=True)
-            model.half()
+            model = torch.hub.load("ultralytics/yolov5", "yolov5l6", pretrained=True).to(device)
         else:
-            model = torch.hub.load("ultralytics/yolov5", "yolov5s6", pretrained=True)
-            model.to(device)
+            model = torch.hub.load("ultralytics/yolov5", "yolov5s6", pretrained=True).to(device)
+
+    elif model_name == "Fast Neural Style Transfer":
+
+        if len(os.listdir("saved_models")) < 4:
+            dw_main()
+
+        fnst_type = re.sub(" ", "_", fnst_type).lower()
+
+        fnst_path = f"./saved_models/{fnst_type}.pth"
+
+        def load_style(path):
+            with torch.no_grad():
+                model = TransformerNet()
+                state_dict = torch.load(path)
+
+                for k in list(state_dict.keys()):  # remove deprecation
+                    if re.search(r'in\d+\.running_(mean|var)$', k): del state_dict[k]
+
+                model.load_state_dict(state_dict)
+                return model.to(device)
+
+        model = load_style(fnst_path)
 
     else:
         compound_coef = int(model_name[-1])
@@ -153,21 +149,16 @@ def get_model(model_name="Yolov5"):
         model.requires_grad_(False)
         model.eval()
 
-        if device == "cuda":
-            model.half()
+    if device == "cuda":
+        model.half()
 
     return model.to(device)
 
 
+#%%
 if __name__ == '__main__':
     cudnn.benchmark = True
     device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    regressBoxes = BBoxTransform()
-    clipBoxes = ClipBoxes()
-    threshold = 0.2
-    iou_threshold = 0.2
-
 
     # Capture video frames
     cap = cv2.VideoCapture(0)
