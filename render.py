@@ -115,7 +115,10 @@ def get_model(model_name="Yolov5", fnst_type=None):
 
     elif model_name == "Fast Neural Style Transfer":
 
-        if len(os.listdir("saved_models")) < 4:
+        try:
+            if len(os.listdir("saved_models")) < 4:
+                dw_main()
+        except FileNotFoundError:
             dw_main()
 
         fnst_type = re.sub(" ", "_", fnst_type).lower()
