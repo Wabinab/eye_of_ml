@@ -13,6 +13,7 @@ from torch.backends import cudnn
 from efficientdet.utils import BBoxTransform, ClipBoxes
 from backbone import EfficientDetBackbone
 from myutils.myutils import invert_affine, postprocess, torch_preprocess_video, display
+from experimental.net_canny import canny
 
 import os
 import signal
@@ -26,6 +27,8 @@ from neural_style.vgg import Vgg16
 
 from show_frame_utils import *
 from download_saved_models import dw_main
+
+use_float16 = True
 
 
 #%%
@@ -56,6 +59,9 @@ def tkinter_design():
             show_frame(lmain, trigger, model, cap)
         elif chosen_model.get() == "Fast Neural Style Transfer":
             show_frame_fnst(lmain, trigger, model, cap, device)
+        elif chosen_model.get() == "Edge Detection":
+            use_cuda = True if device == "cuda" else False
+            show_frame_edge(lmain, trigger, model, cap, device)
         else:
             show_frame_effdet(lmain, trigger, model, cap, device)
 
@@ -74,8 +80,14 @@ def tkinter_design():
     w = tk.OptionMenu(button_frame, trigger, "flip frame horizontally", "don't flip frame")
     w.grid(row=0, column=0, padx=5, pady=5)
 
-    models_list = ["Yolov5", "EfficientDet D0", "Fast Neural Style Transfer"]
-    if device == "cuda": models_list += ["EfficientDet D4", "EfficientDet D8"]
+    models_list = ["Yolov5",
+                   "EfficientDet D0",
+                   "EfficientDet D4",
+                   "EfficientDet D8",
+                   "Fast Neural Style Transfer",
+                   "Edge Detection"]
+    # if device == "cuda": models_list += ["EfficientDet D4", "EfficientDet D8"]
+    # models_list = sorted(models_list)
 
     chosen_model = tk.StringVar(frame)
     chosen_model.set("Yolov5")
@@ -138,7 +150,7 @@ def get_model(model_name="Yolov5", fnst_type=None):
 
         model = load_style(fnst_path)
 
-    else:
+    elif re.match(r"Efficient", model_name):
         compound_coef = int(model_name[-1])
         model = EfficientDetBackbone(compound_coef=compound_coef, num_classes=len(obj_list), device=device)
         try:
@@ -152,7 +164,10 @@ def get_model(model_name="Yolov5", fnst_type=None):
         model.requires_grad_(False)
         model.eval()
 
-    if device == "cuda":
+    else:
+        return canny
+
+    if device == "cuda" and use_float16:
         model.half()
 
     return model.to(device)
