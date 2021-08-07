@@ -122,3 +122,18 @@ def show_frame_fnst(lmain, trigger, model, cap, device):
     lmain.imgtk = imgtk
     lmain.configure(image=imgtk)
     lmain.after(5, lambda: show_frame_fnst(lmain, trigger, model, cap, device))
+
+
+#%%
+def show_frame_edge(lmain, trigger, model, cap, use_cuda):
+    _, frame = cap.read()
+    if trigger.get() == "flip frame horizontally":
+        frame = cv2.flip(frame, 1)
+
+    results = model(frame, use_cuda=use_cuda)
+    img = Image.fromarray(results * 255)
+    img = img.resize((1280, 960), Image.ANTIALIAS)
+    imgtk = ImageTk.PhotoImage(image=img)
+    lmain.imgtk = imgtk
+    lmain.configure(image=imgtk)
+    lmain.after(20, lambda: show_frame_edge(lmain, trigger, model, cap, use_cuda))

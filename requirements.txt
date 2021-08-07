@@ -5,6 +5,7 @@ torchsummary==1.5.1
 opencv-python
 numpy
 Pillow
+scipy
 
 # taken from ultralytics/yolov5 requirements. 
 # base ----------------------------------------
