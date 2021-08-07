@@ -175,7 +175,10 @@ def get_model(model_name="Yolov5", fnst_type=None):
 
 #%%
 if __name__ == '__main__':
+    torch.set_grad_enabled(False)  # disable computation of gradient
+    cudnn.enabled = True
     cudnn.benchmark = True
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Capture video frames
