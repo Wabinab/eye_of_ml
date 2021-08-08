@@ -28,8 +28,6 @@ from neural_style.vgg import Vgg16
 from show_frame_utils import *
 from download_saved_models import dw_main
 
-use_float16 = True
-
 
 #%%
 def tkinter_design():
@@ -61,7 +59,7 @@ def tkinter_design():
             show_frame_fnst(lmain, trigger, model, cap, device)
         elif chosen_model.get() == "Edge Detection":
             use_cuda = True if device == "cuda" else False
-            show_frame_edge(lmain, trigger, model, cap, device)
+            show_frame_edge(lmain, trigger, model, cap, use_cuda)
         else:
             show_frame_effdet(lmain, trigger, model, cap, device)
 
@@ -115,7 +113,6 @@ def tkinter_design():
 
 #%%
 def get_model(model_name="Yolov5", fnst_type=None):
-    os_type = sys.platform
 
     if model_name == "Yolov5":
 
@@ -167,7 +164,7 @@ def get_model(model_name="Yolov5", fnst_type=None):
     else:
         return canny
 
-    if device == "cuda" and use_float16:
+    if device == "cuda":
         model.half()
 
     return model.to(device)
